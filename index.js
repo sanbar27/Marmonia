@@ -1,4 +1,4 @@
-require("dotenv").config(); // Încarcă variabilele din .env
+require("dotenv").config(); // Load .env
 
 const { 
     Client, 
@@ -11,10 +11,10 @@ const {
 
 const fs = require("fs");
 
-// Importă setările tale din config.json
-const { clientId, guildId, owners } = require("./config.json");
+// Import from config.json
+const { clientId, guildId, owners, logChannelId } = require("./config.json");
 
-// Tokenul botului, luat din .env
+// Token from .env
 const token = process.env.STAR_TOKEN;
 
 // ----------------------
@@ -39,6 +39,15 @@ const client = new Client({
 });
 
 // ----------------------
+// Logging Function
+// ----------------------
+function logAction(embed) {
+    const channel = client.channels.cache.get(logChannelId);
+    if (!channel) return console.log("❌ Log channel not found!");
+    channel.send({ embeds: [embed] }).catch(() => {});
+}
+
+// ----------------------
 // Slash Commands
 // ----------------------
 const commands = [
@@ -60,12 +69,12 @@ const commands = [
 
     new SlashCommandBuilder()
         .setName("star")
-        .setDescription("🌟 Check user star count")
+        .setDescription("🌟 Check a user's star count")
         .addUserOption(opt => opt.setName("user").setDescription("User").setRequired(true)),
 
     new SlashCommandBuilder()
         .setName("leaderboard")
-        .setDescription("🏆 Show the star leaderboard")
+        .setDescription("🏆 Show the top star leaderboard")
 ].map(cmd => cmd.toJSON());
 
 // ----------------------
@@ -75,7 +84,7 @@ client.once("ready", async () => {
     const rest = new REST({ version: "10" }).setToken(token);
 
     try {
-        await rest.put(Routes.applicationCommands(clientId), { body: [] }); 
+        await rest.put(Routes.applicationCommands(clientId), { body: [] });
         await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
 
         console.log("⭐ Commands registered!");
@@ -96,7 +105,7 @@ client.on("interactionCreate", async interaction => {
     const saveDB = () => fs.writeFileSync(dbPath, JSON.stringify(stars, null, 2));
     const ensure = id => { if (!stars[id]) stars[id] = 0; };
 
-    // Owner only commands
+    // Owner-only commands
     const ownerOnly = ["addstar", "removestar", "clearstars"];
     if (ownerOnly.includes(cmd) && !owners.includes(interaction.user.id)) {
         return interaction.reply({
@@ -120,7 +129,21 @@ client.on("interactionCreate", async interaction => {
             .setColor("#FFD700")
             .setThumbnail(user.displayAvatarURL({ dynamic: true }));
 
-        return interaction.reply({ embeds: [embed] });
+        interaction.reply({ embeds: [embed] });
+
+        // LOG
+        const logEmbed = new EmbedBuilder()
+            .setTitle("⭐ Star Added (LOG)")
+            .setColor("#FFD700")
+            .setDescription(`
+**Moderator:** ${interaction.user}
+**User:** ${user}
+**Amount:** ${amount}
+            `)
+            .setTimestamp();
+
+        logAction(logEmbed);
+        return;
     }
 
     // ---------------------- /removestar ----------------------
@@ -138,7 +161,21 @@ client.on("interactionCreate", async interaction => {
             .setColor("#FF0000")
             .setThumbnail(user.displayAvatarURL({ dynamic: true }));
 
-        return interaction.reply({ embeds: [embed] });
+        interaction.reply({ embeds: [embed] });
+
+        // LOG
+        const logEmbed = new EmbedBuilder()
+            .setTitle("❌ Star Removed (LOG)")
+            .setColor("#FF0000")
+            .setDescription(`
+**Moderator:** ${interaction.user}
+**User:** ${user}
+**Amount Removed:** ${amount}
+            `)
+            .setTimestamp();
+
+        logAction(logEmbed);
+        return;
     }
 
     // ---------------------- /clearstars ----------------------
@@ -151,7 +188,17 @@ client.on("interactionCreate", async interaction => {
             .setDescription("Every user's stars have been reset to **0**.")
             .setColor("#000000");
 
-        return interaction.reply({ embeds: [embed] });
+        interaction.reply({ embeds: [embed] });
+
+        // LOG
+        const logEmbed = new EmbedBuilder()
+            .setTitle("🧹 All Stars Cleared (LOG)")
+            .setColor("#000000")
+            .setDescription(`**Moderator:** ${interaction.user} reset ALL stars.`)
+            .setTimestamp();
+
+        logAction(logEmbed);
+        return;
     }
 
     // ---------------------- /star ----------------------
@@ -161,7 +208,7 @@ client.on("interactionCreate", async interaction => {
 
         const embed = new EmbedBuilder()
             .setTitle("🌟 Star Count")
-            .setDescription(`**${user.username}** currently has **${stars[user.id]} ⭐**`)
+            .setDescription(`**${user.username}** has **${stars[user.id]} ⭐**`)
             .setColor("#00BFFF")
             .setThumbnail(user.displayAvatarURL({ dynamic: true }));
 
