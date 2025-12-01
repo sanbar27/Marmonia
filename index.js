@@ -48,6 +48,30 @@ function logAction(embed) {
 }
 
 // ----------------------
+// AUTHORIZATION SYSTEM
+// ----------------------
+function isAuthorized(interaction) {
+    const member = interaction.member;
+
+    // 1. OWNER IDs
+    if (owners.includes(interaction.user.id)) return true;
+
+    // 2. ROLE HIGHER THAN BOT
+    const botRolePos = interaction.guild.members.me.roles.highest.position;
+    const userRolePos = member.roles.highest.position;
+
+    if (userRolePos > botRolePos) return true;
+
+    // 3. SPECIAL ADMIN ROLES
+    const allowedRoles = ["Admin", "Administrator", "Management", "Staff"];
+    if (member.roles.cache.some(r => allowedRoles.includes(r.name))) {
+        return true;
+    }
+
+    return false;
+}
+
+// ----------------------
 // Slash Commands
 // ----------------------
 const commands = [
@@ -105,9 +129,9 @@ client.on("interactionCreate", async interaction => {
     const saveDB = () => fs.writeFileSync(dbPath, JSON.stringify(stars, null, 2));
     const ensure = id => { if (!stars[id]) stars[id] = 0; };
 
-    // Owner-only commands
+    // Owner-only commands → NOW USE AUTH SYSTEM
     const ownerOnly = ["addstar", "removestar", "clearstars"];
-    if (ownerOnly.includes(cmd) && !owners.includes(interaction.user.id)) {
+    if (ownerOnly.includes(cmd) && !isAuthorized(interaction)) {
         return interaction.reply({
             content: "⛔ You are not allowed to use this command.",
             ephemeral: true
@@ -163,7 +187,6 @@ client.on("interactionCreate", async interaction => {
 
         interaction.reply({ embeds: [embed] });
 
-        // LOG
         const logEmbed = new EmbedBuilder()
             .setTitle("❌ Star Removed (LOG)")
             .setColor("#FF0000")
@@ -190,7 +213,6 @@ client.on("interactionCreate", async interaction => {
 
         interaction.reply({ embeds: [embed] });
 
-        // LOG
         const logEmbed = new EmbedBuilder()
             .setTitle("🧹 All Stars Cleared (LOG)")
             .setColor("#000000")
